@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="六级背单词">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#6c63ff">
+<meta name="application-name" content="六级背单词">
+<meta name="description" content="基于艾宾浩斯记忆曲线的CET-6六级高频词背诵应用">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<title>六级词汇 · 艓宾浩斯记忆</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d2e;
+    --card2: #222540;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --green: #00d4aa;
+    --red: #ff6b6b;
+    --yellow: #ffd166;
+    --text: #e8eaf6;
+    --text2: #9095b4;
+    --border: #2d3155;
+    --shadow: 0 8px 32px rgba(108,99,255,0.15);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { 
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "PingFang SC", "SF Pro Display", "Microsoft YaHei", sans-serif;
+    min-height: 100vh; min-height: 100dvh;
+    overflow-x: hidden;
+    touch-action: pan-y;
+  }
+  body {
+    display: flex; flex-direction: column;
+  }
+
+  /* ===== PWA INSTALL BANNER ===== */
+  .pwa-banner {
+    display: none;
+    background: linear-gradient(135deg, var(--accent), #4a42d1);
+    color: #fff; padding: 12px 16px;
+    align-items: center; justify-content: space-between;
+    font-size: 14px; font-weight: 600;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .pwa-banner.show { display: flex; }
+  .pwa-banner-text { flex: 1; }
+  .pwa-install-btn {
+    background: #fff; color: var(--accent);
+    padding: 8px 18px; border-radius: 99px;
+    font-size: 13px; font-weight: 700; border: none;
+    cursor: pointer; white-space: nowrap;
+  }
+
+  /* ===== TOP BAR ===== */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar .logo { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+  .topbar .stats { display: flex; gap: 16px; }
+  .stat-item { text-align: center; }
+  .stat-val { font-size: 18px; font-weight: 700; color: var(--text); }
+  .stat-lbl { font-size: 10px; color: var(--text2); }
+
+  /* ===== PROGRESS BAR ===== */
+  .progress-wrap {
+    padding: 8px 16px 0; background: var(--card);
+  }
+  .progress-bar-bg {
+    height: 4px; border-radius: 99px;
+    background: var(--border); overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    transition: width 0.4s ease;
+  }
+  .progress-text {
+    font-size: 11px; color: var(--text2);
+    text-align: right; padding: 3px 0 6px;
+  }
+
+  /* ===== MAIN ===== */
+  main {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 16px 16px 120px;
+  }
+
+  /* ===== CARD with SWIPE ===== */
+  .swipe-container {
+    width: 100%; max-width: 520px;
+    position: relative;
+    touch-action: pan-y;
+    overflow: hidden;
+  }
+  .word-card {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 28px 24px 20px;
+    box-shadow: var(--shadow);
+    position: relative;
+    animation: slideIn .35s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    will-change: transform, opacity;
+  }
+  .word-card.swiping {
+    transition: none;
+  }
+  .word-card.swipe-right {
+    transform: translateX(120vw) rotate(15deg);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+  .word-card.swipe-left {
+    transform: translateX(-120vw) rotate(-15deg);
+    opacity: 0;
+    transition: transform 0.4s ease, opacity 0.3s ease;
+  }
+  @keyframes slideIn {
+    from { opacity:0; transform: translateY(20px) scale(0.95); }
+    to   { opacity:1; transform: translateY(0) scale(1); }
+  }
+
+  /* Swipe overlay hints */
+  .swipe-hint-right {
+    position: absolute; top: 16px; right: 16px;
+    background: rgba(0,212,170,0.25); color: var(--green);
+    padding: 6px 14px; border-radius: 8px;
+    font-size: 14px; font-weight: 700;
+    opacity: 0; transition: opacity 0.1s;
+    border: 2px solid rgba(0,212,170,0.4);
+    pointer-events: none;
+  }
+  .swipe-hint-left {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(255,107,107,0.25); color: var(--red);
+    padding: 6px 14px; border-radius: 8px;
+    font-size: 14px; font-weight: 700;
+    opacity: 0; transition: opacity 0.1s;
+    border: 2px solid rgba(255,107,107,0.4);
+    pointer-events: none;
+  }
+
+  .card-tag {
+    position: absolute; top: 14px; right: 14px;
+    font-size: 11px; padding: 3px 10px; border-radius: 99px;
+    font-weight: 600; letter-spacing: 0.5px;
+  }
+  .tag-new    { background: rgba(108,99,255,0.2); color: var(--accent); }
+  .tag-review { background: rgba(255,209,102,0.2); color: var(--yellow); }
+  .tag-master { background: rgba(0,212,170,0.2); color: var(--green); }
+
+  .word-num { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+
+  .word-main {
+    font-size: 38px; font-weight: 800;
+    color: var(--text); letter-spacing: -1px;
+    margin-bottom: 4px; line-height: 1.1;
+  }
+  .word-phonetic {
+    font-size: 15px; color: var(--accent);
+    font-style: italic; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .speaker-btn {
+    cursor: pointer; background: rgba(108,99,255,0.15);
+    border: none; border-radius: 50%;
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--accent); font-size: 14px;
+    transition: background .2s;
+    -webkit-user-select: none;
+  }
+  .speaker-btn:active { background: rgba(108,99,255,0.4); transform: scale(0.92); }
+
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+  .meanings-list { margin-bottom: 14px; }
+  .meaning-row {
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-bottom: 6px;
+  }
+  .pos-tag {
+    font-size: 11px; padding: 2px 7px; border-radius: 4px;
+    font-weight: 600; min-width: 32px; text-align: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .pos-n  { background: rgba(0,212,170,0.15); color: var(--green); }
+  .pos-v  { background: rgba(255,101,132,0.15); color: var(--accent2); }
+  .pos-adj{ background: rgba(255,209,102,0.15); color: var(--yellow); }
+  .pos-adv{ background: rgba(108,99,255,0.15); color: var(--accent); }
+  .pos-other{ background: rgba(150,150,150,0.15); color: #aaa; }
+  .meaning-cn { font-size: 16px; color: var(--text); line-height: 1.5; }
+
+  .examples-section { margin-top: 6px; }
+  .example-title {
+    font-size: 12px; color: var(--text2); letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .example-title::before {
+    content:''; display:block; width:3px; height:12px;
+    background: var(--accent); border-radius: 2px;
+  }
+  .example-card {
+    background: var(--card2);
+    border-radius: 10px; padding: 10px 12px;
+    border-left: 3px solid var(--accent);
+  }
+  .example-en {
+    font-size: 14px; color: var(--text);
+    line-height: 1.6; margin-bottom: 3px;
+  }
+  .example-en .highlight {
+    color: var(--accent); font-weight: 700;
+    text-decoration: underline; text-decoration-color: rgba(108,99,255,.4);
+  }
+  .example-cn { font-size: 13px; color: var(--text2); line-height: 1.5; }
+
+  /* ===== MEMORY DOTS ===== */
+  .memory-dots {
+    display: flex; gap: 6px; margin: 14px 0 0;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border); transition: all .3s;
+  }
+  .dot.filled { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  /* ===== EBBINGHAUS ===== */
+  .ebbinghaus-info {
+    margin-top: 10px;
+    font-size: 12px; color: var(--text2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ebbinghaus-badge {
+    background: rgba(255,209,102,0.15); color: var(--yellow);
+    border-radius: 99px; padding: 2px 8px; font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ===== ACTION BUTTONS ===== */
+  .action-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 16px calc(16px + var(--safe-bottom));
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    display: flex; gap: 12px; justify-content: center;
+    z-index: 50;
+  }
+  .btn {
+    flex: 1; max-width: 200px;
+    padding: 14px 0; border-radius: 14px;
+    font-size: 15px; font-weight: 700;
+    border: none; cursor: pointer;
+    transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    -webkit-user-select: none;
+  }
+  .btn:active { transform: scale(0.94); }
+
+  .btn-know {
+    background: linear-gradient(135deg, #00d4aa, #00b48a);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,212,170,0.3);
+  }
+  .btn-unknown {
+    background: linear-gradient(135deg, #ff6b6b, #e84d4d);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(255,107,107,0.3);
+  }
+
+  /* ===== CONGRATS ===== */
+  .congrats-screen {
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px 20px; gap: 16px; flex: 1;
+  }
+  .congrats-screen.show { display: flex; }
+  .congrats-emoji { font-size: 64px; }
+  .congrats-title { font-size: 24px; font-weight: 800; }
+  .congrats-sub { font-size: 15px; color: var(--text2); line-height: 1.7; }
+  .restart-btn {
+    margin-top: 12px;
+    padding: 12px 36px; border-radius: 14px;
+    background: var(--accent); color: #fff;
+    font-size: 15px; font-weight: 700; border: none; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(108,99,255,0.4);
+  }
+  .restart-btn:active { transform: scale(0.94); }
+
+  /* ===== TABS / OVERVIEW ===== */
+  .tabs {
+    display: flex; gap: 0;
+    background: var(--card); padding: 0 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 10px 16px; font-size: 14px; cursor: pointer;
+    color: var(--text2); border-bottom: 2px solid transparent;
+    transition: all .2s; font-weight: 500;
+    -webkit-user-select: none;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ===== OVERVIEW PANEL ===== */
+  .overview-wrap {
+    max-width: 520px; margin: 0 auto; padding: 16px 16px 120px;
+  }
+  .overview-cards {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px; margin-bottom: 16px;
+  }
+  .ov-card {
+    background: var(--card); border-radius: 14px;
+    padding: 14px 10px; text-align: center;
+    border: 1px solid var(--border);
+  }
+  .ov-val { font-size: 26px; font-weight: 800; }
+  .ov-lbl { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .ov-val.green { color: var(--green); }
+  .ov-val.yellow { color: var(--yellow); }
+  .ov-val.red { color: var(--red); }
+
+  .section-title {
+    font-size: 13px; color: var(--text2); letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 10px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+
+  .review-schedule { margin-bottom: 20px; }
+  .schedule-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: var(--card);
+    border-radius: 10px; margin-bottom: 6px;
+    border: 1px solid var(--border);
+  }
+  .schedule-day { font-weight: 600; font-size: 14px; }
+  .schedule-count {
+    background: rgba(108,99,255,0.2); color: var(--accent);
+    padding: 3px 10px; border-radius: 99px; font-size: 13px; font-weight: 600;
+  }
+
+  .mastered-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .mastered-tag {
+    background: rgba(0,212,170,0.1); color: var(--green);
+    border: 1px solid rgba(0,212,170,0.25);
+    border-radius: 8px; padding: 4px 10px;
+    font-size: 13px;
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+    background: var(--card2); color: var(--text);
+    padding: 10px 20px; border-radius: 99px;
+    font-size: 14px; font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s;
+    z-index: 999;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== SWIPE INSTRUCTION ===== */
+  .swipe-instruction {
+    font-size: 11px; color: var(--text2); text-align: center;
+    margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    opacity: 0.7;
+  }
+
+  /* ===== HAPTIC FEEDBACK ===== */
+  @keyframes hapticKnow {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(0.95); }
+  }
+  @keyframes hapticUnknown {
+    0%, 100% { transform: scale(1); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  /* ===== STREAK DISPLAY ===== */
+  .streak-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; background: var(--card);
+    margin-top: 4px;
+  }
+  .streak-fire { font-size: 18px; }
+  .streak-text { font-size: 13px; color: var(--text2); }
+  .streak-num { font-size: 16px; font-weight: 700; color: var(--yellow); }
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- PWA INSTALL BANNER -->
+<div class="pwa-banner" id="pwaBanner">
+  <div class="pwa-banner-text">📱 安装到手机桌面，像App一样使用！</div>
+  <button class="pwa-install-btn" onclick="installPWA()">安装</button>
+  <button style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:8px" onclick="dismissBanner()">✕</button>
+</div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="logo">📚 六级词汇</div>
+  <div class="stats">
+    <div class="stat-item">
+      <div class="stat-val" style="color:var(--green)" id="statMastered">0</div>
+      <div class="stat-lbl">已掌握</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-val" style="color:var(--yellow)" id="statToday">0</div>
+      <div class="stat-lbl">今日</div>
+    </div>
+  </div>
+</div>
+
+<!-- STREAK -->
+<div class="streak-bar" id="streakBar">
+  <span class="streak-fire">🔥</span>
+  <span class="streak-text">连续学习</span>
+  <span class="streak-num" id="streakNum">0</span>
+  <span class="streak-text">天</span>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" data-tab="study" onclick="switchTab('study')">📖 背单词</div>
+  <div class="tab" data-tab="overview" onclick="switchTab('overview')">📊 概览</div>
+</div>
+
+<!-- STUDY PANEL -->
+<div id="panel-study" class="panel active">
+  <!-- PROGRESS BAR -->
+  <div class="progress-wrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div class="progress-text" id="progressText">0 / 0</div>
+  </div>
+
+  <main id="mainStudy">
+    <div class="swipe-container" id="swipeContainer">
+      <!-- WORD CARD will be injected here -->
+      <div id="wordCardWrap"></div>
+    </div>
+
+    <!-- CONGRATS -->
+    <div class="congrats-screen" id="congratsScreen">
+      <div class="congrats-emoji">🎉</div>
+      <div class="congrats-title">今日任务完成！</div>
+      <div class="congrats-sub" id="congratsSub"></div>
+      <button class="restart-btn" onclick="nextSession()">继续复习 →</button>
+    </div>
+  </main>
+
+  <!-- ACTION BAR -->
+  <div class="action-bar" id="actionBar">
+    <button class="btn btn-unknown" onclick="markWord(false)">
+      <span>😅</span> 还不会
+    </button>
+    <button class="btn btn-know" onclick="markWord(true)">
+      <span>✅</span> 学会了
+    </button>
+  </div>
+</div>
+
+<!-- OVERVIEW PANEL -->
+<div id="panel-overview" class="panel">
+  <div class="overview-wrap">
+    <div class="overview-cards">
+      <div class="ov-card">
+        <div class="ov-val green" id="ovMastered">0</div>
+        <div class="ov-lbl">已完全掌握</div>
+      </div>
+      <div class="ov-card">
+        <div class="ov-val yellow" id="ovLearning">0</div>
+        <div class="ov-lbl">学习中</div>
+      </div>
+      <div class="ov-card">
+        <div class="ov-val red" id="ovNew">0</div>
+        <div class="ov-lbl">未学习</div>
+      </div>
+    </div>
+
+    <div class="review-schedule">
+      <div class="section-title">🗓 艓宾浩斯复习计划</div>
+      <div id="scheduleList"></div>
+    </div>
+
+    <div>
+      <div class="section-title">🏆 已完全掌握的单词</div>
+      <div class="mastered-list" id="masteredList">
+        <div style="color:var(--text2);font-size:14px">还没有完全掌握的单词，继续加油！💪</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== PWA =====================
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('pwaBanner').classList.add('show');
+});
+
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(choice => {
+      if (choice.outcome === 'accepted') {
+        showToast('✅ 已安装到桌面！');
+      }
+      deferredPrompt = null;
+      dismissBanner();
+    });
+  }
+}
+
+function dismissBanner() {
+  document.getElementById('pwaBanner').classList.remove('show');
+}
+
+// Register Service Worker (only works on HTTP, not file://)
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    console.log('[PWA] Service Worker registered', reg.scope);
+  }).catch(err => {
+    console.log('[PWA] SW registration failed', err);
+  });
+} else {
+  console.log('[PWA] Skipping SW registration (file:// protocol or no SW support)');
+}
+
+// ===================== WORD DATA =====================
+const WORDS_RAW = [
+  {word:"defect",meaning:"缺点，缺陷"},{word:"flexible",meaning:"灵活的；柔韧的"},{word:"scent",meaning:"气味；香味；嗅出"},{word:"collide",meaning:"碰撞；冲突"},{word:"tragic",meaning:"悲剧的；悲惨的"},{word:"erroneous",meaning:"错误的"},{word:"shuttle",meaning:"往返；穿梭；班车"},{word:"participate",meaning:"参与；参加"},{word:"advantage",meaning:"优势；好处"},{word:"exceptional",meaning:"杰出的；异常的"},{word:"hinder",meaning:"阻碍；妨碍"},{word:"hesitate",meaning:"犹豫；迟疑"},{word:"compromise",meaning:"妥协；折中"},{word:"underlying",meaning:"潜在的；根本的"},{word:"feedback",meaning:"反馈"},{word:"qualification",meaning:"资格；资质"},{word:"variable",meaning:"可变的；变量"},{word:"enthusiastic",meaning:"热情的；热心的"},{word:"precede",meaning:"在…之前；领先"},{word:"range",meaning:"范围；一系列；排列"},
+  {word:"episode",meaning:"插曲；片段；事件"},{word:"abuse",meaning:"滥用；虐待；辱骂"},{word:"condemn",meaning:"谴责；声讨"},{word:"appreciate",meaning:"欣赏；感激；升值"},{word:"sculpture",meaning:"雕塑；雕刻"},{word:"weird",meaning:"怪异的；离奇的"},{word:"previous",meaning:"先前的；以前的"},{word:"wander",meaning:"漫步；徘徊；走神"},{word:"supervise",meaning:"监督；管理"},{word:"mortal",meaning:"致命的；凡人"},{word:"explosive",meaning:"爆炸的；炸药"},{word:"competence",meaning:"能力；胜任"},{word:"investigate",meaning:"调查；研究"},{word:"eliminate",meaning:"消除；淘汰"},{word:"migrate",meaning:"迁移；迁徙"},{word:"reckless",meaning:"鲁莽的；不计后果的"},{word:"penalty",meaning:"惩罚；罚金"},{word:"impose",meaning:"强加；征收"},{word:"accomplish",meaning:"完成；实现"},{word:"sponsor",meaning:"赞助；发起"},
+  {word:"tumble",meaning:"跌倒；暴跌"},{word:"uphold",meaning:"支持；维护"},{word:"propel",meaning:"推动；驱使"},{word:"descent",meaning:"下降；血统"},{word:"drawback",meaning:"缺点；不利"},{word:"illuminate",meaning:"照亮；阐明"},{word:"adhere",meaning:"黏附；遵守"},{word:"indicative",meaning:"指示的；象征的"},{word:"reckon",meaning:"认为；估计"},{word:"redundant",meaning:"多余的；冗余的"},{word:"dominate",meaning:"支配；主导"},{word:"reverse",meaning:"反转；颠倒；相反的"},{word:"proportion",meaning:"比例；部分"},{word:"calculate",meaning:"计算；估算"},{word:"identical",meaning:"完全相同的"},{word:"innovation",meaning:"创新；革新"},{word:"intrigued",meaning:"好奇的；着迷的"},{word:"epidemic",meaning:"流行病；流行的"},{word:"encounter",meaning:"遭遇；遇见"},{word:"accelerate",meaning:"加速；促进"},
+  {word:"energetic",meaning:"精力充沛的"},{word:"heighten",meaning:"提高；增强"},{word:"passive",meaning:"被动的；消极的"},{word:"consumption",meaning:"消耗；消费"},{word:"bald",meaning:"秃头的；光秃的"},{word:"spill",meaning:"洒；溢出"},{word:"calorie",meaning:"卡路里；热量"},{word:"doubtful",meaning:"可疑的；不确定的"},{word:"prevalent",meaning:"普遍的；流行的"},{word:"appeal",meaning:"呼吁；吸引；上诉"},{word:"dump",meaning:"倾倒；丢弃"},{word:"yell",meaning:"叫喊；大喊"},{word:"saying",meaning:"谚语；格言"},{word:"forecast",meaning:"预测；预报"},{word:"brew",meaning:"酿造；冲泡；酝酿"},{word:"circulation",meaning:"循环；流通"},{word:"perceive",meaning:"感知；察觉；理解"},{word:"appearance",meaning:"出现；外表"},{word:"export",meaning:"出口；输出"},{word:"transfer",meaning:"转移；转让"},
+  {word:"genetic",meaning:"遗传的；基因的"},{word:"offspring",meaning:"后代；子女"},{word:"distribute",meaning:"分发；分配"},{word:"accompany",meaning:"陪伴；伴随"},{word:"persist",meaning:"坚持；持续"},{word:"differentiate",meaning:"区分；区别"},{word:"perspective",meaning:"视角；观点"},{word:"fabricate",meaning:"捏造；编造；制造"},{word:"abundance",meaning:"丰富；充裕"},{word:"batch",meaning:"一批；一组"},{word:"elapse",meaning:"流逝；过去"},{word:"seal",meaning:"密封；印章；海豹"},{word:"mature",meaning:"成熟的；成熟"},{word:"combination",meaning:"结合；组合"},{word:"lean",meaning:"倾斜；倚靠；瘦的"},{word:"incline",meaning:"倾斜；倾向"},{word:"index",meaning:"索引；指数"},{word:"nutrition",meaning:"营养；滋养"},{word:"constant",meaning:"持续的；恒定的；常数"},{word:"regardless",meaning:"不管；不顾"},
+  {word:"refund",meaning:"退款；退还"},{word:"discern",meaning:"察觉；识别"},{word:"stumble",meaning:"绊倒；蹒跚"},{word:"negligible",meaning:"可忽略的"},{word:"assault",meaning:"袭击；攻击"},{word:"transit",meaning:"运输；中转"},{word:"concrete",meaning:"具体的；混凝土"},{word:"magnify",meaning:"放大；夸大"},{word:"poisonous",meaning:"有毒的；恶毒的"},{word:"virtual",meaning:"虚拟的；实际上的"},{word:"thesis",meaning:"论文；论点"},{word:"predecessor",meaning:"前任；前身"},{word:"geology",meaning:"地质学"},{word:"invaluable",meaning:"无价的；极宝贵的"},{word:"adjacent",meaning:"相邻的；邻近的"},{word:"captive",meaning:"被俘的；俘虏"},{word:"catholic",meaning:"广泛的；天主教的"},{word:"adjoin",meaning:"毗邻；靠近"},{word:"ballet",meaning:"芭蕾舞"},{word:"traditional",meaning:"传统的"},
+  {word:"extraordinary",meaning:"非凡的；特别的"},{word:"perpetual",meaning:"永久的；永恒的"},{word:"prejudice",meaning:"偏见；歧视"},{word:"fancy",meaning:"想象；喜欢；精致的"},{word:"optical",meaning:"光学的；视觉的"},{word:"consequence",meaning:"结果；后果"},{word:"astronomy",meaning:"天文学"},{word:"catastrophe",meaning:"大灾难；浩劫"},{word:"foresee",meaning:"预见；预知"},{word:"prescribe",meaning:"开处方；规定"},{word:"certify",meaning:"证明；认证"},{word:"absurd",meaning:"荒谬的；荒唐的"},{word:"donate",meaning:"捐赠；捐献"},{word:"transplant",meaning:"移植；移栽"},{word:"ample",meaning:"充足的；大量的"},{word:"dynamic",meaning:"动态的；有活力的"},{word:"terrific",meaning:"极好的；惊人的"},{word:"cafeteria",meaning:"自助餐厅"},{word:"disregard",meaning:"无视；漠视"},{word:"overload",meaning:"超载；超负荷"},
+  {word:"compel",meaning:"强迫；迫使"},{word:"ignorant",meaning:"无知的；愚昧的"},{word:"aggravate",meaning:"加重；恶化；激怒"},{word:"inherent",meaning:"内在的；固有的"},{word:"restore",meaning:"恢复；修复"},{word:"preview",meaning:"预览；预告"},{word:"explicit",meaning:"明确的；清晰的"},{word:"anniversary",meaning:"周年纪念"},{word:"approach",meaning:"方法；途径；接近"},{word:"depict",meaning:"描绘；描述"},{word:"evolution",meaning:"进化；演变"},{word:"overcome",meaning:"克服；战胜"},{word:"vigorous",meaning:"精力充沛的；有力的"},{word:"recreation",meaning:"娱乐；消遣"},{word:"stable",meaning:"稳定的；稳固的"},{word:"framework",meaning:"框架；结构"},{word:"brochure",meaning:"小册子；宣传册"},{word:"consequent",meaning:"随之发生的；结果的"},{word:"occupy",meaning:"占据；占用；忙于"},{word:"profile",meaning:"轮廓；简介；侧面"},
+  {word:"compose",meaning:"组成；创作；作曲"},{word:"compulsory",meaning:"强制的；必修的"},{word:"personnel",meaning:"人员；员工"},{word:"complicated",meaning:"复杂的；难懂的"},{word:"dioxide",meaning:"二氧化物"},{word:"nuisance",meaning:"讨厌的人/事；麻烦"},{word:"toxic",meaning:"有毒的；中毒的"},{word:"offend",meaning:"冒犯；得罪；违反"},{word:"retrieve",meaning:"找回；取回；恢复"},{word:"inject",meaning:"注射；注入"},{word:"designate",meaning:"指定；指派"},{word:"vacuum",meaning:"真空；吸尘器"},{word:"polish",meaning:"擦亮；润色；抛光剂"},{word:"eligible",meaning:"合格的；有资格的"},{word:"antique",meaning:"古董；古老的"},{word:"memorial",meaning:"纪念的；纪念碑"},{word:"pedal",meaning:"踏板；踩踏板"},{word:"hazard",meaning:"危险；冒险"},{word:"prophet",meaning:"先知；预言家"},{word:"sacred",meaning:"神圣的；庄严的"},
+  {word:"salute",meaning:"敬礼；致敬"},{word:"proceed",meaning:"继续；进行"},{word:"slump",meaning:"暴跌；衰退；消沉"},{word:"thrive",meaning:"繁荣；兴旺"},{word:"esteem",meaning:"尊重；敬重"},{word:"currency",meaning:"货币；流通"},{word:"exert",meaning:"运用；施加"},{word:"oriental",meaning:"东方的"},{word:"ignorance",meaning:"无知；愚昧"},{word:"kidney",meaning:"肾脏"},{word:"vain",meaning:"徒劳的；自负的"},{word:"violate",meaning:"违反；违背；侵犯"},{word:"cancel",meaning:"取消；撤销"},{word:"divorce",meaning:"离婚；分离"},{word:"accord",meaning:"一致；协议；给予"},{word:"bribe",meaning:"贿赂；行贿"},{word:"economy",meaning:"经济；节约"},{word:"identification",meaning:"识别；身份证明"},{word:"ability",meaning:"能力；才能"},{word:"brief",meaning:"简短的；简洁的；摘要"},
+  {word:"conserve",meaning:"保护；保存"},{word:"fraction",meaning:"小部分；分数"},{word:"slash",meaning:"砍；大幅削减"},{word:"bonus",meaning:"奖金；红利"},{word:"annual",meaning:"年度的；每年的"},{word:"metric",meaning:"米制的；公制的"},{word:"profitable",meaning:"有利可图的；盈利的"},{word:"precise",meaning:"精确的；准确的"},{word:"notorious",meaning:"臭名昭著的"},{word:"residential",meaning:"住宅的；居住的"},{word:"conventional",meaning:"常规的；传统的"},{word:"subsidy",meaning:"补贴；补助金"},{word:"tub",meaning:"盆；桶；浴缸"},{word:"giant",meaning:"巨人；巨大的"},{word:"furnace",meaning:"熔炉；火炉"},{word:"initial",meaning:"最初的；首字母"},{word:"incentive",meaning:"激励；动机"},{word:"sacrifice",meaning:"牺牲；奉献"},{word:"convert",meaning:"转换；转化"},{word:"portion",meaning:"部分；份额"},
+  {word:"lounge",meaning:"休息室；闲逛"},{word:"cozy",meaning:"舒适的；惬意的"},{word:"scratch",meaning:"抓；刮擦；划痕"},{word:"relieve",meaning:"缓解；减轻；解除"},{word:"precaution",meaning:"预防；警惕"},{word:"permanent",meaning:"永久的；固定的"},{word:"exaggerate",meaning:"夸张；夸大"},{word:"remedy",meaning:"补救；治疗"},{word:"defy",meaning:"违抗；蔑视"},{word:"routine",meaning:"常规；例行的"},{word:"fake",meaning:"伪造的；假货"},{word:"instruct",meaning:"指导；指示"},{word:"occasional",meaning:"偶尔的；偶然的"},{word:"challenge",meaning:"挑战；质疑"},{word:"equip",meaning:"装备；配备"},{word:"initiate",meaning:"启动；发起"},{word:"occupation",meaning:"职业；占领"},{word:"suspect",meaning:"怀疑；嫌疑人"},{word:"patience",meaning:"耐心；忍耐"},{word:"endure",meaning:"忍受；持续"},
+  {word:"gap",meaning:"差距；缺口"},{word:"cheat",meaning:"欺骗；作弊"},{word:"abundant",meaning:"丰富的；充裕的"},{word:"gaze",meaning:"凝视；注视"},{word:"ideal",meaning:"理想的；理想"},{word:"jealous",meaning:"嫉妒的；羡慕的"},{word:"payment",meaning:"支付；付款"},{word:"revolve",meaning:"旋转；围绕"},{word:"sanction",meaning:"批准；制裁"},{word:"respectively",meaning:"分别地；各自地"},{word:"satisfactory",meaning:"令人满意的"},{word:"skeptical",meaning:"怀疑的；多疑的"},{word:"boost",meaning:"提升；推动"},{word:"household",meaning:"家庭；家用的"},{word:"appliance",meaning:"器具；电器"},{word:"generate",meaning:"产生；生成"},{word:"drain",meaning:"排水；耗尽"},{word:"integral",meaning:"完整的；不可或缺的"},{word:"bankrupt",meaning:"破产的；破产者"},{word:"compact",meaning:"紧凑的；合同"},
+  {word:"immense",meaning:"巨大的；极大的"},{word:"consume",meaning:"消耗；消费"},{word:"sensitive",meaning:"敏感的；体贴的"},{word:"haunt",meaning:"萦绕；常出没"},{word:"vanish",meaning:"消失；不见"},{word:"complex",meaning:"复杂的；综合体"},{word:"freight",meaning:"货运；货物"},{word:"insulate",meaning:"绝缘；隔离"},{word:"implement",meaning:"实施；执行"},{word:"electrical",meaning:"电的；电气的"},{word:"efficient",meaning:"高效的；有效率的"},{word:"derive",meaning:"源自；获得"},{word:"keen",meaning:"热衷的；敏锐的"},{word:"casual",meaning:"随意的；偶然的"},{word:"acquaintance",meaning:"熟人；相识"},{word:"embarrass",meaning:"使尴尬；使难堪"},{word:"inferior",meaning:"较差的；下级的"},{word:"parade",meaning:"游行；检阅"},{word:"donation",meaning:"捐赠；捐款"},{word:"vague",meaning:"模糊的；含糊的"},
+  {word:"construct",meaning:"建造；构造"},{word:"expose",meaning:"暴露；揭露"},{word:"betray",meaning:"背叛；泄露"},{word:"embrace",meaning:"拥抱；欣然接受"},{word:"sample",meaning:"样本；抽样"},{word:"upset",meaning:"使心烦；沮丧的"},{word:"decisive",meaning:"决定性的；果断的"},{word:"expansive",meaning:"广阔的；开朗的"},{word:"conscience",meaning:"良心；道德心"},{word:"exemplify",meaning:"例证；举例说明"},{word:"sexual",meaning:"性的；性别的"},{word:"manufacture",meaning:"制造；捏造"},{word:"peculiar",meaning:"奇特的；特有的"},{word:"means",meaning:"方式；方法；手段"},{word:"output",meaning:"输出；产量"},{word:"scope",meaning:"范围；眼界"},{word:"reward",meaning:"奖励；回报"},{word:"nurture",meaning:"养育；培育"},{word:"passion",meaning:"激情；酷爱"},{word:"quest",meaning:"探索；寻求"},
+  {word:"refrain",meaning:"克制；抑制"},{word:"concern",meaning:"涉及；担忧；关心"},{word:"collection",meaning:"收集；收藏品"},{word:"correspondence",meaning:"通信；一致"},{word:"sufficient",meaning:"足够的；充足的"},{word:"illustrate",meaning:"说明；阐明"},{word:"abandon",meaning:"放弃；抛弃"},{word:"miserable",meaning:"痛苦的；悲惨的"},{word:"trap",meaning:"陷阱；困住"},{word:"enclose",meaning:"围住；附上"},{word:"amaze",meaning:"使惊奇；惊叹"},{word:"unfold",meaning:"展开；显露"},{word:"prime",meaning:"首要的；最好的"},{word:"shift",meaning:"转移；转变"},{word:"disrupt",meaning:"扰乱；中断"},{word:"graduate",meaning:"毕业；毕业生"},{word:"trend",meaning:"趋势；倾向"},{word:"critical",meaning:"关键的；批评的"},{word:"adequate",meaning:"足够的；合格的"},{word:"dread",meaning:"畏惧；担心"},
+  {word:"artificial",meaning:"人造的；人工的"},{word:"inflation",meaning:"通货膨胀"},{word:"adjust",meaning:"调整；调节"},{word:"stem",meaning:"阻止；源于"},{word:"misery",meaning:"痛苦；不幸"},{word:"multiply",meaning:"增加；繁殖；乘"},{word:"liberate",meaning:"解放；释放"},{word:"dip",meaning:"浸；蘸；下降"},{word:"segment",meaning:"部分；分割"},{word:"setback",meaning:"挫折；阻碍"},{word:"imaginative",meaning:"富有想象力的"},{word:"portray",meaning:"描绘；刻画"},{word:"feast",meaning:"盛宴；宴会"},{word:"erase",meaning:"擦掉；抹去"},{word:"administer",meaning:"管理；执行"},{word:"assurance",meaning:"保证；确信"},{word:"scrutiny",meaning:"审查；细看"},{word:"gleam",meaning:"闪烁；微光"},{word:"surf",meaning:"冲浪；浏览"},{word:"generous",meaning:"慷慨的；大方的"},
+  {word:"optimistic",meaning:"乐观的"},{word:"impress",meaning:"使印象深刻"},{word:"sightseeing",meaning:"观光；游览"},{word:"champagne",meaning:"香槟酒"},{word:"entertain",meaning:"娱乐；招待"},{word:"steer",meaning:"驾驶；引导"},{word:"frustrate",meaning:"挫败；使沮丧"},{word:"definition",meaning:"定义；清晰度"},{word:"attain",meaning:"获得；达到"},{word:"statement",meaning:"声明；陈述"},{word:"exceed",meaning:"超过；超出"},{word:"originate",meaning:"起源；创造"},{word:"reservation",meaning:"预订；保留"},{word:"obligation",meaning:"义务；责任"},{word:"resolution",meaning:"决心；解决"},{word:"discount",meaning:"折扣；打折"},{word:"comprehensive",meaning:"全面的；综合的"},{word:"anyhow",meaning:"无论如何；总之"},{word:"instant",meaning:"立刻的；瞬间"},{word:"misfortune",meaning:"不幸；灾祸"},
+  {word:"extravagant",meaning:"奢侈的；过度的"},{word:"cling",meaning:"依附；坚持"},{word:"complaint",meaning:"抱怨；投诉"},{word:"skim",meaning:"浏览；略读"},{word:"dim",meaning:"昏暗的；模糊的"},{word:"collapse",meaning:"崩溃；倒塌"},{word:"federal",meaning:"联邦的"},{word:"aboard",meaning:"在船/飞机上"},{word:"devise",meaning:"设计；发明"},{word:"venture",meaning:"冒险；风险项目"},{word:"clip",meaning:"夹住；夹子"},{word:"stroke",meaning:"中风；笔画；击打"},{word:"combat",meaning:"战斗；斗争"},{word:"revenue",meaning:"收入；税收"},{word:"apart",meaning:"分开；分离的"},{word:"repay",meaning:"偿还；报答"},{word:"bound",meaning:"一定的；受约束的"},{word:"embark",meaning:"着手；上船"},{word:"corrupt",meaning:"腐败的；使堕落"},{word:"recipe",meaning:"食谱；秘诀"},
+  {word:"disclose",meaning:"透露；揭露"},{word:"classic",meaning:"经典的；名著"},{word:"provision",meaning:"供应；条款"},{word:"industrialize",meaning:"工业化"},{word:"proposal",meaning:"提议；求婚"},{word:"flourish",meaning:"繁荣；兴旺"},{word:"coordinate",meaning:"协调；同等的"},{word:"existence",meaning:"存在；生存"},{word:"deem",meaning:"认为；视作"},{word:"merely",meaning:"仅仅；只不过"},{word:"incredible",meaning:"难以置信的；惊人的"},{word:"conduct",meaning:"引导；行为"},{word:"exotic",meaning:"异国的；奇异的"},{word:"orbit",meaning:"轨道；环绕"},{word:"fare",meaning:"费用；票价"},{word:"conclude",meaning:"总结；推断"},{word:"tremendous",meaning:"巨大的；极好的"},{word:"institution",meaning:"机构；制度"},{word:"rare",meaning:"稀有的；罕见的"},{word:"compensation",meaning:"补偿；赔偿"},
+  {word:"abroad",meaning:"在国外"},{word:"lag",meaning:"滞后；落后"},{word:"aware",meaning:"意识到的；知道的"},{word:"grocery",meaning:"食品杂货店"},{word:"incident",meaning:"事件；事变"},{word:"concentrate",meaning:"集中；专注"},{word:"immune",meaning:"免疫的；不受影响的"},{word:"susceptible",meaning:"易受影响的"},{word:"infect",meaning:"感染；传染"},{word:"evidence",meaning:"证据；迹象"},{word:"regulate",meaning:"调节；管理"},{word:"advanced",meaning:"先进的；高级的"},{word:"effective",meaning:"有效的；实际的"},{word:"attitude",meaning:"态度；看法"},{word:"grant",meaning:"授予；拨款"},{word:"access",meaning:"进入；通道"},{word:"indifferent",meaning:"冷漠的；无关紧要的"},{word:"crush",meaning:"压碎；镇压"},{word:"elementary",meaning:"基础的；初级的"},{word:"primary",meaning:"主要的；首要的"},
+  {word:"curriculum",meaning:"课程"},{word:"capable",meaning:"有能力的"},{word:"outstanding",meaning:"杰出的；显著的"},{word:"statesman",meaning:"政治家"},{word:"harsh",meaning:"严厉的；刺耳的"},{word:"representative",meaning:"代表；典型的"},{word:"automation",meaning:"自动化"},{word:"application",meaning:"申请；应用"},{word:"personality",meaning:"个性；人格"},{word:"tutor",meaning:"导师；家教"},{word:"formula",meaning:"公式；方案"},{word:"spit",meaning:"吐；唾液"},{word:"relate",meaning:"关联；涉及"},{word:"extreme",meaning:"极端的；极度的"},{word:"abnormal",meaning:"反常的；异常的"},{word:"electrician",meaning:"电工"},{word:"fury",meaning:"暴怒；狂怒"},{word:"overhear",meaning:"无意中听到"},{word:"paradise",meaning:"天堂；乐园"},{word:"muscular",meaning:"肌肉的；强壮的"},
+  {word:"usage",meaning:"使用；用法"},{word:"saturate",meaning:"使饱和；浸透"},{word:"acknowledge",meaning:"承认；感谢"},{word:"imaginary",meaning:"想象的；虚构的"},{word:"approve",meaning:"赞成；批准"},{word:"verge",meaning:"边缘；濒临"},{word:"reliable",meaning:"可靠的；可信的"},{word:"accommodation",meaning:"住宿；住处"},{word:"temporary",meaning:"暂时的；临时的"},{word:"participant",meaning:"参与者"},{word:"likelihood",meaning:"可能性"},{word:"register",meaning:"登记；注册"},{word:"affect",meaning:"影响；使感动"},{word:"appetite",meaning:"食欲；胃口"},{word:"suppress",meaning:"压制；抑制"},{word:"destination",meaning:"目的地"},{word:"skip",meaning:"跳过；略过"},{word:"intersection",meaning:"十字路口；交叉"},{word:"deficit",meaning:"赤字；亏损"},{word:"consistent",meaning:"一致的；持续的"},
+  {word:"reveal",meaning:"揭示；揭露"},{word:"disorder",meaning:"混乱；失调"},{word:"institute",meaning:"建立；协会"},{word:"alter",meaning:"改变；更改"},{word:"disguise",meaning:"伪装；掩饰"},{word:"instantaneous",meaning:"瞬间的"},{word:"offensive",meaning:"冒犯的；进攻的"},{word:"twist",meaning:"扭曲；拧"},{word:"desperate",meaning:"绝望的；不顾一切的"},{word:"understanding",meaning:"理解；谅解"},{word:"neglect",meaning:"忽视；忽略"},{word:"interrupt",meaning:"打断；中断"},{word:"timely",meaning:"及时的"},{word:"determination",meaning:"决心；坚定"},{word:"therapy",meaning:"治疗；疗法"},{word:"handicap",meaning:"障碍；残疾"},{word:"glide",meaning:"滑行；滑翔"},{word:"invariably",meaning:"总是；不变地"},{word:"serial",meaning:"连续的；连续剧"},{word:"shabby",meaning:"破旧的；衣衫褴褛的"},
+  {word:"gigantic",meaning:"巨大的；庞大的"},{word:"invert",meaning:"反转；倒置"},{word:"predict",meaning:"预测；预言"},{word:"interview",meaning:"面试；采访"},{word:"overlook",meaning:"忽视；俯瞰"},{word:"external",meaning:"外部的"},{word:"contrary",meaning:"相反的"},{word:"exclaim",meaning:"呼喊；惊叫"},{word:"prior",meaning:"优先的；先前的"},{word:"preference",meaning:"偏爱；偏好"},{word:"bold",meaning:"大胆的；勇敢的"},{word:"mercy",meaning:"仁慈；怜悯"},{word:"circular",meaning:"圆形的；循环的"},{word:"accustom",meaning:"使习惯"},{word:"clarify",meaning:"澄清；阐明"},{word:"permission",meaning:"许可；允许"},{word:"illusion",meaning:"幻觉；错觉"},{word:"agreeable",meaning:"令人愉快的；同意的"}
+];
+
+// ===================== PHONETICS & EXAMPLES DB =====================
+const PHONETICS = {
+  defect:"ˈdiːfekt",flexible:"ˈfleksɪbl",scent:"sent",collide:"kəˈlaɪd",tragic:"ˈtrædʒɪk",
+  erroneous:"ɪˈrəʊniəs",shuttle:"ˈʃʌtl",participate:"pɑːˈtɪsɪpeɪt",advantage:"ədˈvɑːntɪdʒ",exceptional:"ɪkˈsepʃənl",
+  hinder:"ˈhɪndə",hesitate:"ˈhezɪteɪt",compromise:"ˈkɒmprəmaɪz",underlying:"ˌʌndəˈlaɪɪŋ",feedback:"ˈfiːdbæk",
+  qualification:"ˌkwɒlɪfɪˈkeɪʃn",variable:"ˈveəriəbl",enthusiastic:"ɪnˌθjuːziˈæstɪk",precede:"prɪˈsiːd",range:"reɪndʒ",
+  episode:"ˈepɪsəʊd",abuse:"əˈbjuːz",condemn:"kənˈdem",appreciate:"əˈpriːʃieɪt",sculpture:"ˈskʌlptʃə",
+  weird:"wɪəd",previous:"ˈpriːviəs",wander:"ˈwɒndə",supervise:"ˈsuːpəvaɪz",mortal:"ˈmɔːtl",
+  explosive:"ɪkˈspləʊsɪv",competence:"ˈkɒmpɪtəns",investigate:"ɪnˈvestɪɡeɪt",eliminate:"ɪˈlɪmɪneɪt",migrate:"maɪˈɡreɪt",
+  reckless:"ˈrekləs",penalty:"ˈpenəlti",impose:"ɪmˈpəʊz",accomplish:"əˈkʌmplɪʃ",sponsor:"ˈspɒnsə",
+  tumble:"ˈtʌmbl",uphold:"ˌʌpˈhəʊld",propel:"prəˈpel",descent:"dɪˈsent",drawback:"ˈdrɔːbæk",
+  illuminate:"ɪˈluːmɪneɪt",adhere:"ədˈhɪə",indicative:"ɪnˈdɪkətɪv",reckon:"ˈrekən",redundant:"rɪˈdʌndənt",
+  dominate:"ˈdɒmɪneɪt",reverse:"rɪˈvɜːs",proportion:"prəˈpɔːʃn",calculate:"ˈkælkjuleɪt",identical:"aɪˈdentɪkl",
+  innovation:"ˌɪnəˈveɪʃn",intrigued:"ɪnˈtriːɡd",epidemic:"ˌepɪˈdemɪk",encounter:"ɪnˈkaʊntə",accelerate:"əkˈseləreɪt",
+  energetic:"ˌenəˈdʒetɪk",heighten:"ˈhaɪtn",passive:"ˈpæsɪv",consumption:"kənˈsʌmpʃn",bald:"bɔːld",
+  spill:"spɪl",calorie:"ˈkæləri",doubtful:"ˈdaʊtfl",prevalent:"ˈprevələnt",appeal:"əˈpiːl",
+  dump:"dʌmp",yell:"jel",saying:"ˈseɪɪŋ",forecast:"ˈfɔːkɑːst",brew:"bruː",
+  circulation:"ˌsɜːkjəˈleɪʃn",perceive:"pəˈsiːv",appearance:"əˈpɪərəns",export:"ˈekspɔːt",transfer:"trænsˈfɜː",
+  genetic:"dʒəˈnetɪk",offspring:"ˈɒfsprɪŋ",distribute:"dɪˈstrɪbjuːt",accompany:"əˈkʌmpəni",persist:"pəˈsɪst",
+  differentiate:"ˌdɪfəˈrenʃieɪt",perspective:"pəˈspektɪv",fabricate:"ˈfæbrɪkeɪt",abundance:"əˈbʌndəns",batch:"bætʃ",
+  elapse:"ɪˈlæps",seal:"siːl",mature:"məˈtʃʊə",combination:"ˌkɒmbɪˈneɪʃn",lean:"liːn",
+  incline:"ɪnˈklaɪn",index:"ˈɪndeks",nutrition:"njuːˈtrɪʃn",constant:"ˈkɒnstənt",regardless:"rɪˈɡɑːdləs",
+  refund:"ˈriːfʌnd",discern:"dɪˈsɜːn",stumble:"ˈstʌmbl",negligible:"ˈneɡlɪdʒəbl",assault:"əˈsɔːlt",
+  transit:"ˈtrænsɪt",concrete:"ˈkɒŋkriːt",magnify:"ˈmæɡnɪfaɪ",poisonous:"ˈpɔɪzənəs",virtual:"ˈvɜːtʃuəl",
+  thesis:"ˈθiːsɪs",predecessor:"ˈpriːdɪsesə",geology:"dʒiˈɒlədʒi",invaluable:"ɪnˈvæljuəbl",adjacent:"əˈdʒeɪsnt",
+  captive:"ˈkæptɪv",catholic:"ˈkæθlɪk",adjoin:"əˈdʒɔɪn",ballet:"ˈbæleɪ",traditional:"trəˈdɪʃənl",
+  extraordinary:"ɪkˈstrɔːdnri",perpetual:"pəˈpetʃuəl",prejudice:"ˈpredʒʊdɪs",fancy:"ˈfænsi",optical:"ˈɒptɪkl",
+  consequence:"ˈkɒnsɪkwəns",astronomy:"əˈstrɒnəmi",catastrophe:"kəˈtæstrəfi",foresee:"fɔːˈsiː",prescribe:"prɪˈskraɪb",
+  certify:"ˈsɜːtɪfaɪ",absurd:"əbˈsɜːd",donate:"dəʊˈneɪt",transplant:"trænsˈplɑːnt",ample:"ˈæmpl",
+  dynamic:"daɪˈnæmɪk",terrific:"təˈrɪfɪk",cafeteria:"ˌkæfɪˈtɪəriə",disregard:"ˌdɪsrɪˈɡɑːd",overload:"ˌəʊvəˈləʊd",
+  compel:"kəmˈpel",ignorant:"ˈɪɡnərənt",aggravate:"ˈæɡrəveɪt",inherent:"ɪnˈhɪərənt",restore:"rɪˈstɔː",
+  preview:"ˈpriːvjuː",explicit:"ɪkˈsplɪsɪt",anniversary:"ˌænɪˈvɜːsəri",approach:"əˈprəʊtʃ",depict:"dɪˈpɪkt",
+  evolution:"ˌiːvəˈluːʃn",overcome:"ˌəʊvəˈkʌm",vigorous:"ˈvɪɡərəs",recreation:"ˌrekriˈeɪʃn",stable:"ˈsteɪbl",
+  framework:"ˈfreɪmwɜːk",brochure:"ˈbrəʊʃə",consequent:"ˈkɒnsɪkwənt",occupy:"ˈɒkjupaɪ",profile:"ˈprəʊfaɪl",
+  compose:"kəmˈpəʊz",compulsory:"kəmˈpʌlsəri",personnel:"ˌpɜːsəˈnel",complicated:"ˈkɒmplɪkeɪtɪd",dioxide:"daɪˈɒksaɪd",
+  nuisance:"ˈnjuːsns",toxic:"ˈtɒksɪk",offend:"əˈfend",retrieve:"rɪˈtriːv",inject:"ɪnˈdʒekt",
+  designate:"ˈdezɪɡneɪt",vacuum:"ˈvækjuəm",polish:"ˈpɒlɪʃ",eligible:"ˈelɪdʒəbl",antique:"ænˈtiːk",
+  memorial:"məˈmɔːriəl",pedal:"ˈpedl",hazard:"ˈhæzəd",prophet:"ˈprɒfɪt",sacred:"ˈseɪkrɪd",
+  salute:"səˈluːt",proceed:"prəˈsiːd",slump:"slʌmp",thrive:"θraɪv",esteem:"ɪˈstiːm",
+  currency:"ˈkʌrənsi",exert:"ɪɡˈzɜːt",oriental:"ˌɔːriˈentl",ignorance:"ˈɪɡnərəns",kidney:"ˈkɪdni",
+  vain:"veɪn",violate:"ˈvaɪəleɪt",cancel:"ˈkænsl",divorce:"dɪˈvɔːs",accord:"əˈkɔːd",
+  bribe:"braɪb",economy:"ɪˈkɒnəmi",identification:"aɪˌdentɪfɪˈkeɪʃn",ability:"əˈbɪləti",brief:"briːf",
+  conserve:"kənˈsɜːv",fraction:"ˈfrækʃn",slash:"slæʃ",bonus:"ˈbəʊnəs",annual:"ˈænjuəl",
+  metric:"ˈmetrɪk",profitable:"ˈprɒfɪtəbl",precise:"prɪˈsaɪs",notorious:"nəʊˈtɔːriəs",residential:"ˌrezɪˈdenʃl",
+  conventional:"kənˈvenʃənl",subsidy:"ˈsʌbsɪdi",tub:"tʌb",giant:"ˈdʒaɪənt",furnace:"ˈfɜːnɪs",
+  initial:"ɪˈnɪʃl",incentive:"ɪnˈsentɪv",sacrifice:"ˈsækrɪfaɪs",convert:"kənˈvɜːt",portion:"ˈpɔːʃn",
+  lounge:"laʊndʒ",cozy:"ˈkəʊzi",scratch:"skrætʃ",relieve:"rɪˈliːv",precaution:"prɪˈkɔːʃn",
+  permanent:"ˈpɜːmənənt",exaggerate:"ɪɡˈzædʒəreɪt",remedy:"ˈremədi",defy:"dɪˈfaɪ",routine:"ruːˈtiːn",
+  fake:"feɪk",instruct:"ɪnˈstrʌkt",occasional:"əˈkeɪʒənl",challenge:"ˈtʃælɪndʒ",equip:"ɪˈkwɪp",
+  initiate:"ɪˈnɪʃieɪt",occupation:"ˌɒkjuˈpeɪʃn",suspect:"ˈsʌspekt",patience:"ˈpeɪʃns",endure:"ɪnˈdjʊə",
+  gap:"ɡæp",cheat:"tʃiːt",abundant:"əˈbʌndənt",gaze:"ɡeɪz",ideal:"aɪˈdɪəl",
+  jealous:"ˈdʒeləs",payment:"ˈpeɪmənt",revolve:"rɪˈvɒlv",sanction:"ˈsæŋkʃn",respectively:"rɪˈspektɪvli",
+  satisfactory:"ˌsætɪsˈfæktəri",skeptical:"ˈsceptɪkl",boost:"buːst",household:"ˈhaʊshəʊld",appliance:"əˈplaɪəns",
+  generate:"ˈdʒenəreɪt",drain:"dreɪn",integral:"ˈɪntɪɡrəl",bankrupt:"ˈbæŋkrʌpt",compact:"ˈkɒmpækt",
+  immense:"ɪˈmens",consume:"kənˈsjuːm",sensitive:"ˈsensətɪv",haunt:"hɔːnt",vanish:"ˈvænɪʃ",
+  complex:"ˈkɒmpleks",freight:"freɪt",insulate:"ˈɪnsjuleɪt",implement:"ˈɪmplɪment",electrical:"ɪˈlektrɪkl",
+  efficient:"ɪˈfɪʃnt",derive:"dɪˈraɪv",keen:"kiːn",casual:"ˈkæʒuəl",acquaintance:"əˈkweɪntəns",
+  embarrass:"ɪmˈbærəs",inferior:"ɪnˈfɪəriə",parade:"pəˈreɪd",donation:"dəʊˈneɪʃn",vague:"veɪɡ",
+  construct:"kənˈstrʌkt",expose:"ɪkˈspəʊz",betray:"bɪˈtreɪ",embrace:"ɪmˈbreɪs",sample:"ˈsɑːmpl",
+  upset:"ʌpˈset",decisive:"dɪˈsaɪsɪv",expansive:"ɪkˈspænsɪv",conscience:"ˈkɒnʃəns",exemplify:"ɪɡˈzemplɪfaɪ",
+  sexual:"ˈsekʃuəl",manufacture:"ˌmænjuˈfæktʃə",peculiar:"pɪˈkjuːliə",means:"miːnz",output:"ˈaʊtpʊt",
+  scope:"skəʊp",reward:"rɪˈwɔːd",nurture:"ˈnɜːtʃə",passion:"ˈpæʃn",quest:"kwest",
+  refrain:"rɪˈfreɪn",concern:"kənˈsɜːn",collection:"kəˈlekʃn",correspondence:"ˌkɒrɪˈspɒndəns",sufficient:"səˈfɪʃnt",
+  illustrate:"ˈɪləstreɪt",abandon:"əˈbændən",miserable:"ˈmɪzrəbl",trap:"træp",enclose:"ɪnˈkləʊz",
+  amaze:"əˈmeɪz",unfold:"ˌʌnˈfəʊld",prime:"praɪm",shift:"ʃɪft",disrupt:"dɪsˈrʌpt",
+  graduate:"ˈɡrædʒuət",trend:"trend",critical:"ˈkrɪtɪkl",adequate:"ˈædɪkwət",dread:"dred",
+  artificial:"ˌɑːtɪˈfɪʃl",inflation:"ɪnˈfleɪʃn",adjust:"əˈdʒʌst",stem:"stem",misery:"ˈmɪzəri",
+  multiply:"ˈmʌltɪplaɪ",liberate:"ˈlɪbəreɪt",dip:"dɪp",segment:"ˈseɡmənt",setback:"ˈsetbæk",
+  imaginative:"ɪˈmædʒɪnətɪv",portray:"pɔːˈtreɪ",feast:"fiːst",erase:"ɪˈreɪz",administer:"ədˈmɪnɪstə",
+  assurance:"əˈʃʊərəns",scrutiny:"ˈskruːtɪni",gleam:"ɡliːm",surf:"sɜːf",generous:"ˈdʒenərəs",
+  optimistic:"ˌɒptɪˈmɪstɪk",impress:"ɪmˈpres",sightseeing:"ˈsaɪtsiːɪŋ",champagne:"ʃæmˈpeɪn",entertain:"ˌentəˈteɪn",
+  steer:"stɪə",frustrate:"frʌˈstreɪt",definition:"ˌdefɪˈnɪʃn",attain:"əˈteɪn",statement:"ˈsteɪtmənt",
+  exceed:"ɪkˈsiːd",originate:"əˈrɪdʒɪneɪt",reservation:"ˌrezəˈveɪʃn",obligation:"ˌɒblɪˈɡeɪʃn",resolution:"ˌrezəˈluːʃn",
+  discount:"ˈdɪskaʊnt",comprehensive:"ˌkɒmprɪˈhensɪv",anyhow:"ˈenɪhaʊ",instant:"ˈɪnstənt",misfortune:"mɪsˈfɔːtʃuːn",
+  extravagant:"ɪkˈstrævəɡənt",cling:"klɪŋ",complaint:"kəmˈpleɪnt",skim:"skɪm",dim:"dɪm",
+  collapse:"kəˈlæps",federal:"ˈfedərəl",aboard:"əˈbɔːd",devise:"dɪˈvaɪz",venture:"ˈventʃə",
+  clip:"klɪp",stroke:"strəʊk",combat:"ˈkɒmbæt",revenue:"ˈrevənjuː",apart:"əˈpɑːt",
+  repay:"rɪˈpeɪ",bound:"baʊnd",embark:"ɪmˈbɑːk",corrupt:"kəˈrʌpt",recipe:"ˈresɪpi",
+  disclose:"dɪsˈkləʊz",classic:"ˈklæsɪk",provision:"prəˈvɪʒn",industrialize:"ɪnˈdʌstriəlaɪz",proposal:"prəˈpəʊzl",
+  flourish:"ˈflʌrɪʃ",coordinate:"kəʊˈɔːdɪneɪt",existence:"ɪɡˈzɪstəns",deem:"diːm",merely:"ˈmɪəli",
+  incredible:"ɪnˈkredəbl",conduct:"ˈkɒndʌkt",exotic:"ɪɡˈzɒtɪk",orbit:"ˈɔːbɪt",fare:"feə",
+  conclude:"kənˈkluːd",tremendous:"trɪˈmendəs",institution:"ˌɪnstɪˈtjuːʃn",rare:"reə",compensation:"ˌkɒmpenˈseɪʃn",
+  abroad:"əˈbrɔːd",lag:"læɡ",aware:"əˈweə",grocery:"ˈɡrəʊsəri",incident:"ˈɪnsɪdənt",
+  concentrate:"ˈkɒnsntreɪt",immune:"ɪˈmjuːn",susceptible:"səˈseptəbl",infect:"ɪnˈfekt",evidence:"ˈevɪdəns",
+  regulate:"ˈreɡjuleɪt",advanced:"ədˈvɑːnst",effective:"ɪˈfektɪv",attitude:"ˈætɪtjuːd",grant:"ɡrɑːnt",
+  access:"ˈækses",indifferent:"ɪnˈdɪfrənt",crush:"krʌʃ",elementary:"ˌelɪˈmentri",primary:"ˈpraɪməri",
+  curriculum:"kəˈrɪkjələm",capable:"ˈkeɪpəbl",outstanding:"ˌaʊtˈstændɪŋ",statesman:"ˈsteɪtsmən",harsh:"hɑːʃ",
+  representative:"ˌreprɪˈzentətɪv",automation:"ˌɔːtəˈmeɪʃn",application:"ˌæplɪˈkeɪʃn",personality:"ˌpɜːsəˈnæləti",tutor:"ˈtjuːtə",
+  formula:"ˈfɔːmjələ",spit:"spɪt",relate:"rɪˈleɪt",extreme:"ɪkˈstriːm",abnormal:"æbˈnɔːml",
+  electrician:"ɪˌlekˈtrɪʃn",fury:"ˈfjʊəri",overhear:"ˌəʊvəˈhɪə",paradise:"ˈpærədaɪs",muscular:"ˈmʌskjələ",
+  usage:"ˈjuːsɪdʒ",saturate:"ˈsætʃəreɪt",acknowledge:"əkˈnɒlɪdʒ",imaginary:"ɪˈmædʒɪnəri",approve:"əˈpruːv",
+  verge:"vɜːdʒ",reliable:"rɪˈlaɪəbl",accommodation:"əˌkɒməˈdeɪʃn",temporary:"ˈtempərəri",participant:"pɑːˈtɪsɪpənt",
+  likelihood:"ˈlaɪklɪhʊd",register:"ˈredʒɪstə",affect:"əˈfekt",appetite:"ˈæpɪtaɪt",suppress:"səˈpres",
+  destination:"ˌdestɪˈneɪʃn",skip:"skɪp",intersection:"ˌɪntəˈsekʃn",deficit:"ˈdefɪsɪt",consistent:"kənˈsɪstənt",
+  reveal:"rɪˈviːl",disorder:"dɪsˈɔːdə",institute:"ˈɪnstɪtjuːt",alter:"ˈɔːltə",disguise:"dɪsˈɡaɪz",
+  instantaneous:"ˌɪnstənˈteɪniəs",offensive:"əˈfensɪv",twist:"twɪst",desperate:"ˈdespərət",understanding:"ˌʌndəˈstændɪŋ",
+  neglect:"nɪˈɡlekt",interrupt:"ˌɪntəˈrʌpt",timely:"ˈtaɪmli",determination:"dɪˌtɜːmɪˈneɪʃn",therapy:"ˈθerəpi",
+  handicap:"ˈhændɪkæp",glide:"ɡlaɪd",invariably:"ɪnˈveəriəbli",serial:"ˈsɪəriəl",shabby:"ˈʃæbi",
+  gigantic:"dʒaɪˈɡæntɪk",invert:"ɪnˈvɜːt",predict:"prɪˈdɪkt",interview:"ˈɪntəvjuː",overlook:"ˌəʊvəˈlʊk",
+  external:"ɪkˈstɜːnl",contrary:"ˈkɒntrəri",exclaim:"ɪkˈskleɪm",prior:"ˈpraɪə",preference:"ˈprefrəns",
+  bold:"bəʊld",mercy:"ˈmɜːsi",circular:"ˈsɜːkjələ",accustom:"əˈkʌstəm",clarify:"ˈklærɪfaɪ",
+  permission:"pəˈmɪʃn",illusion:"ɪˈluːʒn",agreeable:"əˈɡriːəbl"
+};
+
+const EXAMPLES = {
+  defect:    {en:"The product was returned because of a manufacturing <b>defect</b>.", cn:"该产品因制造缺陷被退回。"},
+  flexible:  {en:"You need to be more <b>flexible</b> in your approach.", cn:"你需要在方法上更加灵活。"},
+  scent:     {en:"The garden was filled with the <b>scent</b> of roses.", cn:"花园里充满了玫瑰的香气。"},
+  collide:   {en:"Two cars <b>collided</b> at the intersection.", cn:"两辆车在十字路口相撞了。"},
+  tragic:    {en:"The earthquake had <b>tragic</b> consequences.", cn:"地震造成了悲惨的后果。"},
+  erroneous: {en:"The report was based on <b>erroneous</b> data.", cn:"报告是基于错误的数据写成的。"},
+  shuttle:   {en:"A <b>shuttle</b> bus runs between the hotel and the airport.", cn:"酒店和机场之间有班车往返。"},
+  participate:{en:"Everyone is encouraged to <b>participate</b> in the discussion.", cn:"鼓励每个人参与讨论。"},
+  advantage: {en:"Being bilingual gives you a great <b>advantage</b> in the job market.", cn:"双语能力在就业市场上给你很大优势。"},
+  exceptional:{en:"She showed <b>exceptional</b> talent in music.", cn:"她在音乐方面表现出了非凡的才华。"},
+  hinder:    {en:"Lack of money will <b>hinder</b> the development of the project.", cn:"资金不足将阻碍项目的发展。"},
+  hesitate:  {en:"Don't <b>hesitate</b> to ask if you have any questions.", cn:"如有任何问题，请不要犹豫，尽管问。"},
+  compromise:{en:"Both sides had to <b>compromise</b> to reach an agreement.", cn:"双方都必须妥协才能达成协议。"},
+  underlying:{en:"We need to address the <b>underlying</b> causes of the problem.", cn:"我们需要解决问题的根本原因。"},
+  feedback:  {en:"We appreciate any <b>feedback</b> you can provide.", cn:"我们感谢您提供的任何反馈。"},
+  qualification:{en:"Do you have the necessary <b>qualifications</b> for this job?", cn:"你有做这份工作所需的资质吗？"},
+  variable:  {en:"Temperature is an important <b>variable</b> in this experiment.", cn:"温度是这个实验中的一个重要变量。"},
+  enthusiastic:{en:"She was <b>enthusiastic</b> about the new project.", cn:"她对新项目充满热情。"},
+  precede:   {en:"A brief introduction will <b>precede</b> the main speech.", cn:"简短的介绍将在主要演讲之前进行。"},
+  range:     {en:"The prices <b>range</b> from $10 to $100.", cn:"价格从10美元到100美元不等。"},
+  accomplish:{en:"She managed to <b>accomplish</b> all her goals.", cn:"她设法实现了她所有的目标。"},
+  investigate:{en:"Police are <b>investigating</b> the cause of the accident.", cn:"警方正在调查事故原因。"},
+  eliminate: {en:"We must <b>eliminate</b> all forms of discrimination.", cn:"我们必须消除一切形式的歧视。"},
+  innovation:{en:"Technological <b>innovation</b> drives economic growth.", cn:"技术创新推动经济增长。"},
+  epidemic:  {en:"The <b>epidemic</b> spread quickly across the country.", cn:"这场流行病迅速蔓延全国。"},
+  accelerate:{en:"The car <b>accelerated</b> to 100km/h in seconds.", cn:"汽车在几秒内加速至100公里/小时。"},
+  consumption:{en:"Energy <b>consumption</b> has increased significantly.", cn:"能源消耗显著增加。"},
+  forecast:  {en:"The weather <b>forecast</b> predicts heavy rain tomorrow.", cn:"天气预报预计明天会有大雨。"},
+  perceive:  {en:"We <b>perceive</b> the world through our senses.", cn:"我们通过感官来感知世界。"},
+  genetic:   {en:"Some diseases have a <b>genetic</b> component.", cn:"有些疾病具有遗传因素。"},
+  distribute:{en:"The aid workers <b>distributed</b> food to the refugees.", cn:"援助工作者向难民分发食物。"},
+  persist:   {en:"If problems <b>persist</b>, please contact us.", cn:"如果问题持续，请联系我们。"},
+  perspective:{en:"Try to look at the situation from a different <b>perspective</b>.", cn:"试着从不同角度来看待这种情况。"},
+  nutrition:  {en:"Good <b>nutrition</b> is essential for children's growth.", cn:"良好的营养对儿童生长至关重要。"},
+  assault:   {en:"He was charged with <b>assault</b>.", cn:"他被指控袭击罪。"},
+  concrete:  {en:"Can you give me a <b>concrete</b> example?", cn:"你能给我一个具体的例子吗？"},
+  virtual:   {en:"The company held a <b>virtual</b> meeting online.", cn:"公司在网上举行了一次虚拟会议。"},
+  extraordinary:{en:"She has an <b>extraordinary</b> ability to learn languages.", cn:"她有着非凡的语言学习能力。"},
+  catastrophe:{en:"The flood was an environmental <b>catastrophe</b>.", cn:"洪水是一场环境浩劫。"},
+  consequence:{en:"Think about the <b>consequences</b> before you act.", cn:"行动前要考虑后果。"},
+  dynamic:   {en:"The company has a very <b>dynamic</b> young team.", cn:"这家公司有一个非常有活力的年轻团队。"},
+  restore:   {en:"The old building has been <b>restored</b> to its original condition.", cn:"这座旧建筑已恢复到原来的状态。"},
+  approach:  {en:"We need a fresh <b>approach</b> to this problem.", cn:"我们需要对这个问题采用新的方法。"},
+  evolution: {en:"The <b>evolution</b> of technology has changed our lives.", cn:"技术的演变改变了我们的生活。"},
+  overcome:  {en:"She <b>overcame</b> many obstacles to succeed.", cn:"她克服了许多障碍才取得成功。"},
+  occupy:    {en:"Tourists <b>occupy</b> most of the hotel rooms.", cn:"游客占据了大部分酒店房间。"},
+  framework: {en:"We need a clear <b>framework</b> for the project.", cn:"我们需要一个清晰的项目框架。"},
+  offend:    {en:"I didn't mean to <b>offend</b> anyone.", cn:"我不是故意冒犯任何人的。"},
+  retrieve:  {en:"The dog was trained to <b>retrieve</b> objects.", cn:"这只狗被训练去取回物品。"},
+  eligible:  {en:"You are <b>eligible</b> for a discount if you're a student.", cn:"如果你是学生，你有资格享受折扣。"},
+  hazard:    {en:"Smoking is a serious health <b>hazard</b>.", cn:"吸烟是严重的健康危害。"},
+  thrive:    {en:"Plants <b>thrive</b> in warm, sunny conditions.", cn:"植物在温暖、阳光充足的条件下茁壮成长。"},
+  currency:  {en:"The local <b>currency</b> is the euro.", cn:"当地货币是欧元。"},
+  violate:   {en:"Parking here would <b>violate</b> the law.", cn:"在这里停车将违反法律。"},
+  economy:   {en:"The <b>economy</b> grew by 3% last year.", cn:"去年经济增长了3%。"},
+  precise:   {en:"She gave very <b>precise</b> instructions.", cn:"她给出了非常精确的指示。"},
+  notorious: {en:"He is <b>notorious</b> for his bad temper.", cn:"他以坏脾气而臭名昭著。"},
+  initial:   {en:"My <b>initial</b> reaction was surprise.", cn:"我最初的反应是惊讶。"},
+  incentive: {en:"There is little <b>incentive</b> for people to save.", cn:"人们几乎没有储蓄的动机。"},
+  sacrifice: {en:"Parents often make great <b>sacrifices</b> for their children.", cn:"父母常常为孩子做出巨大牺牲。"},
+  relieve:   {en:"This medicine will <b>relieve</b> your headache.", cn:"这种药会缓解你的头痛。"},
+  permanent: {en:"She is looking for a <b>permanent</b> job.", cn:"她在找一份固定工作。"},
+  challenge: {en:"Starting a new business is a big <b>challenge</b>.", cn:"创办新企业是一大挑战。"},
+  endure:    {en:"How can you <b>endure</b> such pain?", cn:"你怎么能忍受这样的痛苦？"},
+  abundant:  {en:"Fish are <b>abundant</b> in this river.", cn:"这条河里鱼类丰富。"},
+  ideal:     {en:"This is an <b>ideal</b> place for a holiday.", cn:"这是度假的理想场所。"},
+  generate:  {en:"The wind farm <b>generates</b> electricity for thousands of homes.", cn:"风力发电场为数千户家庭发电。"},
+  efficient: {en:"We need to find a more <b>efficient</b> way to work.", cn:"我们需要找到更高效的工作方式。"},
+  sensitive: {en:"She is very <b>sensitive</b> to criticism.", cn:"她对批评非常敏感。"},
+  implement: {en:"We need to <b>implement</b> the new policy immediately.", cn:"我们需要立即执行新政策。"},
+  construct: {en:"They plan to <b>construct</b> a new bridge.", cn:"他们计划建造一座新桥。"},
+  expose:    {en:"Children should not be <b>exposed</b> to violence.", cn:"儿童不应该接触暴力内容。"},
+  embrace:   {en:"She <b>embraced</b> the opportunity with enthusiasm.", cn:"她热情地接受了这个机会。"},
+  abandon:   {en:"He had to <b>abandon</b> his plan.", cn:"他不得不放弃他的计划。"},
+  shift:     {en:"There has been a major <b>shift</b> in public opinion.", cn:"公众舆论发生了重大转变。"},
+  trend:     {en:"There is a growing <b>trend</b> towards healthy eating.", cn:"健康饮食的趋势越来越明显。"},
+  critical:  {en:"It is <b>critical</b> that we act now.", cn:"我们现在必须行动，这至关重要。"},
+  adjust:    {en:"It took a while to <b>adjust</b> to the new environment.", cn:"适应新环境花了一段时间。"},
+  multiply:  {en:"Bacteria can <b>multiply</b> rapidly.", cn:"细菌可以迅速繁殖。"},
+  generous:  {en:"She was very <b>generous</b> with her time.", cn:"她非常慷慨地贡献了自己的时间。"},
+  optimistic:{en:"I'm <b>optimistic</b> about our chances of success.", cn:"我对我们成功的机会感到乐观。"},
+  exceed:    {en:"Her performance <b>exceeded</b> all expectations.", cn:"她的表现超出了所有人的期望。"},
+  obligation:{en:"We have a moral <b>obligation</b> to help.", cn:"我们有道义上的义务去帮助。"},
+  resolution:{en:"She made a <b>resolution</b> to exercise every day.", cn:"她下决心每天锻炼。"},
+  comprehensive:{en:"We need a <b>comprehensive</b> plan to solve this.", cn:"我们需要一个全面的计划来解决这个问题。"},
+  instant:   {en:"The new app was an <b>instant</b> success.", cn:"这款新应用立刻获得了成功。"},
+  collapse:  {en:"The building <b>collapsed</b> after the earthquake.", cn:"地震后这座建筑倒塌了。"},
+  revenue:   {en:"The company's <b>revenue</b> increased by 20%.", cn:"公司收入增长了20%。"},
+  flourish:  {en:"Business is <b>flourishing</b> in the city.", cn:"城市里商业繁荣。"},
+  existence: {en:"The company has been in <b>existence</b> for 100 years.", cn:"该公司已经存在了100年。"},
+  incredible:{en:"It's <b>incredible</b> how much he has achieved.", cn:"他所取得的成就令人难以置信。"},
+  conclude:  {en:"The study <b>concludes</b> that exercise is beneficial.", cn:"研究得出结论，锻炼是有益的。"},
+  tremendous:{en:"He made a <b>tremendous</b> effort to succeed.", cn:"他为了成功付出了巨大的努力。"},
+  institution:{en:"The university is a respected academic <b>institution</b>.", cn:"这所大学是一所受人尊敬的学术机构。"},
+  concentrate:{en:"I can't <b>concentrate</b> with all this noise.", cn:"有这么多噪音我无法集中注意力。"},
+  immune:    {en:"Some people are <b>immune</b> to the disease.", cn:"有些人对这种疾病有免疫力。"},
+  regulate:  {en:"The government <b>regulates</b> the banking industry.", cn:"政府对银行业进行监管。"},
+  effective: {en:"Exercise is an <b>effective</b> way to reduce stress.", cn:"锻炼是减轻压力的有效方式。"},
+  attitude:  {en:"He has a very positive <b>attitude</b> towards life.", cn:"他对生活持非常积极的态度。"},
+  outstanding:{en:"She gave an <b>outstanding</b> performance.", cn:"她表现出色。"},
+  predict:   {en:"It is difficult to <b>predict</b> the future.", cn:"预测未来是困难的。"},
+  neglect:   {en:"Don't <b>neglect</b> your health.", cn:"不要忽视你的健康。"},
+  determination:{en:"Her <b>determination</b> to succeed was admirable.", cn:"她成功的决心令人钦佩。"},
+  therapy:   {en:"She's undergoing <b>therapy</b> for depression.", cn:"她正在接受抑郁症治疗。"},
+  desperate: {en:"He was <b>desperate</b> to find a solution.", cn:"他迫切地想找到解决方案。"},
+  reveal:    {en:"The investigation <b>revealed</b> the truth.", cn:"调查揭示了真相。"},
+  reliable:  {en:"She is a very <b>reliable</b> employee.", cn:"她是一名非常可靠的员工。"},
+  register:  {en:"You need to <b>register</b> for the course online.", cn:"你需要在网上注册课程。"},
+  suppress:  {en:"He tried to <b>suppress</b> his anger.", cn:"他试图压制自己的愤怒。"},
+  consistent:{en:"The team has been <b>consistent</b> in their performance.", cn:"球队表现一直很稳定。"},
+  passion:   {en:"She has a <b>passion</b> for music.", cn:"她对音乐充满热情。"},
+};
+
+// ===================== HELPERS =====================
+function getPhonetic(word) {
+  return PHONETICS[word.toLowerCase()] || "/ " + word + " /";
+}
+function getExample(word) {
+  const w = word.toLowerCase();
+  if (EXAMPLES[w]) return EXAMPLES[w];
+  return {
+    en: `The word "<b>${word}</b>" is commonly used in academic and daily contexts.`,
+    cn: `"${word}" 在学术和日常语境中广泛使用。`
+  };
+}
+
+function parseMeanings(meaning) {
+  const parts = meaning.split(/[；;]/).map(s => s.trim()).filter(Boolean);
+  return parts.map(p => {
+    let pos = 'other', posLabel = '词';
+    if (/的$|的\b/.test(p)) { pos = 'adj'; posLabel = 'adj.'; }
+    else if (/地$/.test(p)) { pos = 'adv'; posLabel = 'adv.'; }
+    else if (/化$/.test(p)) { pos = 'v'; posLabel = 'v.'; }
+    else if (/[力法学式]$/.test(p)) { pos = 'n'; posLabel = 'n.'; }
+    else if (/[跑走说讲做使令叫让吃喝看听写打骂拿给取带放收传出进来去]/.test(p.charAt(0))) { pos = 'v'; posLabel = 'v.'; }
+    else if (/[；,，]/.test(meaning) && p.length < 6) { pos = 'other'; posLabel = '释'; }
+    return { text: p, pos, posLabel };
+  });
+}
+
+// ===================== STORAGE =====================
+const STORE_KEY = 'cet6_flashcard_v3';
+
+function loadData() {
+  try { const d = localStorage.getItem(STORE_KEY); return d ? JSON.parse(d) : null; }
+  catch(e) { return null; }
+}
+function saveData(data) { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+
+// ===================== STATE =====================
+let state = {
+  words: [],
+  sessionQueue: [],
+  sessionIdx: 0,
+  todayLearned: 0,
+  sessionDate: null,
+  streakDays: 0,
+  lastStudyDate: null
+};
+
+const EBBINGHAUS = [0, 1, 2, 4, 7, 15, 30];
+
+function initState() {
+  const saved = loadData();
+  const today = new Date().toDateString();
+
+  if (saved && saved.words && saved.words.length === WORDS_RAW.length) {
+    state.words = saved.words;
+    state.todayLearned = (saved.sessionDate === today) ? (saved.todayLearned || 0) : 0;
+    state.streakDays = saved.streakDays || 0;
+    state.lastStudyDate = saved.lastStudyDate || null;
+  } else {
+    state.words = WORDS_RAW.map(w => ({
+      word: w.word, meaning: w.meaning,
+      mastered: false, knownCount: 0, reviewCount: 0,
+      nextReview: null, lastSeen: null, firstSeen: null
+    }));
+    state.todayLearned = 0;
+    state.streakDays = 0;
+    state.lastStudyDate = null;
+  }
+  state.sessionDate = today;
+
+  // Calculate streak
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  if (state.lastStudyDate === today || state.lastStudyDate === yesterday) {
+    // streak preserved
+  } else if (state.lastStudyDate) {
+    state.streakDays = 0; // streak broken
+  }
+
+  buildQueue();
+}
+
+function buildQueue() {
+  const now = Date.now();
+  const dueReview = [], learning = [], newWords = [];
+
+  state.words.forEach((w, i) => {
+    if (w.mastered) return;
+    if (w.nextReview && w.nextReview <= now) dueReview.push(i);
+    else if (w.nextReview && w.nextReview > now) learning.push(i);
+    else if (!w.firstSeen) newWords.push(i);
+    else if (w.knownCount < 3) learning.push(i);
+  });
+
+  const NEW_PER_SESSION = 20;
+  const toShow = [
+    ...dueReview,
+    ...newWords.slice(0, Math.max(NEW_PER_SESSION - dueReview.length, 0))
+  ];
+  if (toShow.length < 5) toShow.push(...learning.slice(0, 10));
+
+  state.sessionQueue = shuffle(toShow);
+  state.sessionIdx = 0;
+
+  if (state.sessionQueue.length === 0) {
+    state.sessionQueue = shuffle(learning.slice(0, 20));
+  }
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ===================== SWIPE HANDLING =====================
+let touchStartX = 0, touchStartY = 0, isSwiping = false;
+const SWIPE_THRESHOLD = 80;
+
+function handleTouchStart(e) {
+  const card = document.querySelector('.word-card');
+  if (!card) return;
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  isSwiping = false;
+  card.classList.add('swiping');
+}
+
+function handleTouchMove(e) {
+  const card = document.querySelector('.word-card');
+  if (!card) return;
+  const dx = e.touches[0].clientX - touchStartX;
+  const dy = e.touches[0].clientY - touchStartY;
+
+  // If horizontal swipe is dominant
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
+    isSwiping = true;
+    e.preventDefault(); // prevent vertical scroll during swipe
+
+    // Move card with touch
+    const rotation = dx * 0.05;
+    const opacity = 1 - Math.abs(dx) / 400;
+    card.style.transform = `translateX(${dx}px) rotate(${rotation}deg)`;
+    card.style.opacity = Math.max(opacity, 0.5);
+
+    // Show hint overlays
+    const hintR = card.querySelector('.swipe-hint-right');
+    const hintL = card.querySelector('.swipe-hint-left');
+    if (dx > 30) {
+      if (hintR) hintR.style.opacity = Math.min(dx / SWIPE_THRESHOLD, 1);
+      if (hintL) hintL.style.opacity = 0;
+    } else if (dx < -30) {
+      if (hintL) hintL.style.opacity = Math.min(-dx / SWIPE_THRESHOLD, 1);
+      if (hintR) hintR.style.opacity = 0;
+    } else {
+      if (hintR) hintR.style.opacity = 0;
+      if (hintL) hintL.style.opacity = 0;
+    }
+  }
+}
+
+function handleTouchEnd(e) {
+  const card = document.querySelector('.word-card');
+  if (!card) return;
+  card.classList.remove('swiping');
+
+  if (!isSwiping) {
+    card.style.transform = '';
+    card.style.opacity = '';
+    return;
+  }
+
+  const dx = e.changedTouches[0].clientX - touchStartX;
+
+  // Reset hint overlays
+  const hintR = card.querySelector('.swipe-hint-right');
+  const hintL = card.querySelector('.swipe-hint-left');
+  if (hintR) hintR.style.opacity = 0;
+  if (hintL) hintL.style.opacity = 0;
+
+  if (dx > SWIPE_THRESHOLD) {
+    // Swiped right = 学会了
+    card.classList.add('swipe-right');
+    setTimeout(() => { markWord(true); card.classList.remove('swipe-right'); card.style.transform = ''; card.style.opacity = ''; }, 400);
+  } else if (dx < -SWIPE_THRESHOLD) {
+    // Swiped left = 还不会
+    card.classList.add('swipe-left');
+    setTimeout(() => { markWord(false); card.classList.remove('swipe-left'); card.style.transform = ''; card.style.opacity = ''; }, 400);
+  } else {
+    // Not enough swipe, snap back
+    card.style.transform = '';
+    card.style.opacity = '';
+  }
+}
+
+// Attach swipe listeners
+const swipeContainer = document.getElementById('swipeContainer');
+swipeContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+swipeContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+swipeContainer.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+// ===================== CARD RENDER =====================
+function getCurrentWord() {
+  if (state.sessionIdx >= state.sessionQueue.length) return null;
+  return state.words[state.sessionQueue[state.sessionIdx]];
+}
+
+function renderCard() {
+  const wrap = document.getElementById('wordCardWrap');
+  const actionBar = document.getElementById('actionBar');
+  const congratsScreen = document.getElementById('congratsScreen');
+  const w = getCurrentWord();
+
+  if (!w) {
+    wrap.innerHTML = '';
+    actionBar.style.display = 'none';
+    congratsScreen.classList.add('show');
+    const mastered = state.words.filter(x => x.mastered).length;
+    const learning = state.words.filter(x => !x.mastered && x.firstSeen).length;
+    document.getElementById('congratsSub').innerHTML =
+      `今天学习了 <b style="color:var(--accent)">${state.todayLearned}</b> 个单词<br>` +
+      `已完全掌握 <b style="color:var(--green)">${mastered}</b> 个，学习中 <b style="color:var(--yellow)">${learning}</b> 个<br><br>
+      💡 明天记得继续复习哦！艾宾浩斯记忆曲线会帮你巩固记忆`;
+    updateStats();
+    updateOverview();
+    return;
+  }
+
+  congratsScreen.classList.remove('show');
+  actionBar.style.display = 'flex';
+
+  const phonetic = getPhonetic(w.word);
+  const example = getExample(w.word);
+  const meanings = parseMeanings(w.meaning);
+  const dots = [0,1,2].map(i => `<div class="dot${i < w.knownCount ? ' filled' : ''}"></div>`).join('');
+
+  let tagClass = 'tag-new', tagText = '新词';
+  if (w.firstSeen) { tagClass = 'tag-review'; tagText = w.knownCount >= 2 ? '复习中' : '学习中'; }
+  if (w.mastered) { tagClass = 'tag-master'; tagText = '已掌握'; }
+
+  let ebInfo = '';
+  if (w.reviewCount > 0) {
+    const cycleDay = EBBINGHAUS[Math.min(w.reviewCount, EBBINGHAUS.length-1)];
+    ebInfo = `<div class="ebbinghaus-info">🧠 艓宾浩斯 <span class="ebbinghaus-badge">第${w.reviewCount}次复习</span> 间隔 ${cycleDay} 天</div>`;
+  }
+
+  const posColors = {adj:'pos-adj', v:'pos-v', n:'pos-n', adv:'pos-adv', other:'pos-other'};
+  const posLabels = {adj:'形容词', v:'动词', n:'名词', adv:'副词', other:'释义'};
+  const meaningHtml = meanings.map(m =>
+    `<div class="meaning-row">
+      <span class="pos-tag ${posColors[m.pos] || 'pos-other'}">${posLabels[m.pos] || '释义'}</span>
+      <span class="meaning-cn">${m.text}</span>
+    </div>`
+  ).join('');
+
+  const exEn = example.en.replace(new RegExp(`\\b${w.word}\\b`, 'gi'), m => `<span class="highlight">${m}</span>`);
+  const total = state.sessionQueue.length;
+  const current = state.sessionIdx + 1;
+  const pct = Math.round((current / total) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${current} / ${total}`;
+
+  wrap.innerHTML = `
+    <div class="word-card">
+      <div class="swipe-hint-right">✅ 学会了</div>
+      <div class="swipe-hint-left">😅 还不会</div>
+      <span class="card-tag ${tagClass}">${tagText}</span>
+      <div class="word-num">#${state.words.indexOf(w) + 1} · 六级高频词</div>
+      <div class="word-main">${w.word}</div>
+      <div class="word-phonetic">
+        <span>${phonetic}</span>
+        <button class="speaker-btn" onclick="speak('${w.word}')">🔊</button>
+      </div>
+      <div class="divider"></div>
+      <div class="meanings-list">${meaningHtml}</div>
+      <div class="examples-section">
+        <div class="example-title">例句</div>
+        <div class="example-card">
+          <div class="example-en">${exEn}</div>
+          <div class="example-cn">${example.cn}</div>
+        </div>
+      </div>
+      <div class="memory-dots">${dots}</div>
+      ${ebInfo}
+    </div>
+    <div class="swipe-instruction">👆 右滑 = 学会了 | 左滑 = 还不会</div>
+  `;
+
+  updateStats();
+}
+
+// ===================== SPEECH =====================
+function speak(word) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(word);
+    utt.lang = 'en-US';
+    utt.rate = 0.85;
+    window.speechSynthesis.speak(utt);
+  }
+  // Haptic feedback
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+// ===================== MARK WORD =====================
+function markWord(known) {
+  const w = getCurrentWord();
+  if (!w) return;
+  const now = Date.now();
+
+  if (!w.firstSeen) {
+    w.firstSeen = now;
+    state.todayLearned++;
+  }
+  w.lastSeen = now;
+
+  // Update streak
+  const todayStr = new Date().toDateString();
+  if (state.lastStudyDate !== todayStr) {
+    const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
+    if (state.lastStudyDate === yesterdayStr) {
+      state.streakDays++;
+    } else {
+      state.streakDays = 1;
+    }
+    state.lastStudyDate = todayStr;
+  }
+
+  if (known) {
+    w.knownCount = Math.min(w.knownCount + 1, 3);
+    if (w.knownCount >= 3) {
+      w.mastered = true;
+      w.reviewCount++;
+      w.nextReview = null;
+      showToast('🎉 完全掌握！');
+      if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+    } else {
+      w.reviewCount++;
+      const intervalDays = EBBINGHAUS[Math.min(w.reviewCount, EBBINGHAUS.length - 1)];
+      w.nextReview = intervalDays === 0 ? now + 2*3600000 : now + intervalDays*86400000;
+      showToast(`✅ 再学 ${3 - w.knownCount} 次即可掌握`);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+  } else {
+    w.knownCount = Math.max(0, w.knownCount - 1);
+    w.nextReview = now + 5*60000;
+    showToast('📝 稍后再复习');
+    if (navigator.vibrate) navigator.vibrate([20, 10, 20]);
+    state.sessionQueue.splice(
+      Math.min(state.sessionIdx + 3, state.sessionQueue.length),
+      0, state.sessionQueue[state.sessionIdx]
+    );
+  }
+
+  state.sessionIdx++;
+  saveData({
+    words: state.words,
+    sessionDate: state.sessionDate,
+    todayLearned: state.todayLearned,
+    streakDays: state.streakDays,
+    lastStudyDate: state.lastStudyDate
+  });
+  renderCard();
+}
+
+// ===================== TOAST =====================
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ===================== STATS =====================
+function updateStats() {
+  const mastered = state.words.filter(w => w.mastered).length;
+  document.getElementById('statMastered').textContent = mastered;
+  document.getElementById('statToday').textContent = state.todayLearned;
+  document.getElementById('streakNum').textContent = state.streakDays;
+}
+
+// ===================== TABS =====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+  if (tab === 'overview') updateOverview();
+}
+
+// ===================== OVERVIEW =====================
+function updateOverview() {
+  const mastered = state.words.filter(w => w.mastered).length;
+  const learning = state.words.filter(w => !w.mastered && w.firstSeen).length;
+  const newW = state.words.filter(w => !w.firstSeen).length;
+
+  document.getElementById('ovMastered').textContent = mastered;
+  document.getElementById('ovLearning').textContent = learning;
+  document.getElementById('ovNew').textContent = newW;
+
+  const now = Date.now(), oneDay = 86400000;
+  const schedule = [0,1,2,3,7].map(d => {
+    const start = now + d * oneDay, end = start + oneDay;
+    const count = state.words.filter(w =>
+      !w.mastered && w.nextReview && w.nextReview >= start && w.nextReview < end
+    ).length;
+    const labels = ['今天','明天','后天','第3天','第7天'];
+    return { label: labels[d] || `第${d}天`, count };
+  });
+
+  document.getElementById('scheduleList').innerHTML = schedule.map(s =>
+    `<div class="schedule-item">
+      <span class="schedule-day">📅 ${s.label}</span>
+      <span class="schedule-count">${s.count} 个单词</span>
+    </div>`
+  ).join('') + `<div style="font-size:12px;color:var(--text2);margin-top:8px;line-height:1.7">
+    ⏰ 基于艾宾浩斯记忆曲线：学完后1天、2天、4天、7天、15天、30天各复习一次
+  </div>`;
+
+  const ml = document.getElementById('masteredList');
+  const masteredWords = state.words.filter(w => w.mastered);
+  ml.innerHTML = masteredWords.length === 0
+    ? '<div style="color:var(--text2);font-size:14px">还没有完全掌握的单词，继续加油！💪</div>'
+    : masteredWords.map(w => `<span class="mastered-tag" title="${w.meaning}">${w.word}</span>`).join('');
+}
+
+// ===================== NEXT SESSION =====================
+function nextSession() {
+  buildQueue();
+  document.getElementById('congratsScreen').classList.remove('show');
+  document.getElementById('actionBar').style.display = 'flex';
+  renderCard();
+}
+
+// ===================== INIT =====================
+initState();
+renderCard();
+updateStats();
+</script>
+</body>
+</html>
